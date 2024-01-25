@@ -39,6 +39,10 @@ if st.button('Send video', type='primary'):
 
 if video_upload:
     with st.spinner('***Creating frame from video..***'):
+
+        if not os.path.exists('frames'):
+            os.makedirs('frames')
+
         if not os.path.exists(f'frames/{video_title}'):
             os.makedirs(f'frames/{video_title}')
 
