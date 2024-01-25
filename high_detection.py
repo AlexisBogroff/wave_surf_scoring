@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+
 
 
 
@@ -13,7 +13,7 @@ class image_vague:
             self.height=None
             self.width=None
             self.x=None
-            self.y=800
+            self.y=None
             self.lines_above_surfer = None
             self.hauteur_vague = None
             self.image_segmented = np.zeros_like(self.image_original)
@@ -109,7 +109,7 @@ class image_vague:
         last_y_center = y
         return output_img, last_y_center, lines_above_surfer
 
-    def detect_lines(self, binary_image, step, stepX, threshold_low, threshold_high):
+    def detect_lines(self, binary_image, step, stepX):
         lines_above_surfer = 0
         last_y_center = -1
         output_img = self.image_original.copy()
@@ -159,8 +159,7 @@ class image_vague:
 
                     # début du test après avoir fixé step et threshold
                     output_img, last_y_center, lines_above_surfer = self.detect_lines(
-                        binary_image, step, stepX, threshold_low, threshold_high
-                    )
+                        binary_image, step, stepX)
 
                     if lines_above_surfer <= 2 and lines_above_surfer >= 1:
                         break
@@ -172,8 +171,3 @@ class image_vague:
         print(last_y_center)
         print(lines_above_surfer)
         self.image_with_lines = output_img  
-
-
-
-
-
