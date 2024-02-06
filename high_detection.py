@@ -75,6 +75,7 @@ class ImageWave:
         cv2.line(self.image_ligne, (0, self.surfeur_haut), (width, self.surfeur_haut), (0, 0, 255), 1)
         cv2.line(self.image_ligne, (0, self.surfeur_bas), (width, self.surfeur_bas), (0, 0, 255), 1)
         #self.show_image("Ligne surfeur", self.image_ligne)
+        
 
     def detect_contours(self, threshold1=0, threshold2=30):
         """
@@ -93,7 +94,7 @@ class ImageWave:
         Détecte la hauteur de la vague en analysant l'image.
         """
         for stepX in range(step, 40, 5):
-            if self._find_suitable_lines(step,stepX, threshold_min, threshold_max):
+            if self._find_suitable_lines(step,stepX):
                 break
 
         #print("Y center of the last line:", self.last_y_center)
@@ -141,25 +142,25 @@ class ImageWave:
         image_width = self.image_original.shape[1]
         
         surfer_center_x = self.x + self.width // 2
-        detection_width = image_width // 4  # Largeur du rectangle de détection = 1/4 de la largeur de l'image
+        detection_width = image_width // 3  # Largeur du rectangle de détection = 1/4 de la largeur de l'image
         start_x = max(surfer_center_x - detection_width // 2, 0)  # S'assurer que le rectangle ne dépasse pas à gauche
         end_x = min(surfer_center_x + detection_width // 2, image_width)
 
-        for y in range(self.y, 100, -step):
+        for y in range(self.y-5, 100, -step):
             if self.lines_above_surfer == 4:
                 break
             
             #Cas de detction full largeur
             #sub_rect = binary_image[int(y - step / 2):int(y + step / 2), :]
             
-            #cas de detection 1/4 largeur
+            #cas de detection 1/3 largeur
             sub_rect = binary_image[int(y - step / 2):int(y + step / 2), start_x:end_x]
             line_percentage = self.calculate_line_percentage(sub_rect)
             #Cas de detction full largeur
-            threshold = -5.5 / 1000 * stepX + 0.5
+            #threshold = -5.5 / 1000 * stepX + 0.5
             
             #Cas de detction 1/4 largeur
-            threshold = -5.5 / 1000 * stepX + 0.55
+            threshold = 0.01*stepX
 
             if line_percentage > threshold and abs(y - self.last_y_center) > 100:
                 self.lines_above_surfer += 1
@@ -170,22 +171,35 @@ class ImageWave:
 
         #self.show_image("Lignes détectées", output_img)
         return output_img
+    
+    def auto_canny_threshold(self, image, sigma=0.1):
+        v = np.median(image)//3
+        lower = int(max(0, (1.0 - sigma) * v))
+        upper = int(min(255, (1.0 + sigma) * v))
+        return lower, upper
 
-    def _find_suitable_lines(self, step, stepX, threshold_min, threshold_max):
-        """
-        Trouve des lignes convenables en ajustant les seuils.
-        """
-        for threshold_high in range(threshold_min + 10, threshold_max, 10):
-            for threshold_low in range(threshold_min, threshold_high, 10):
-                self.reset_detection_variables()
-                self.detect_contours(threshold_low, threshold_high)
-                binary=self.process_detection(stepX)
-                self.image_with_lines = self.detect_lines(binary,step,stepX )
-                print("Tentative avec threshold_low = {}, threshold_high = {}, stepX = {}".format(threshold_low, threshold_high, stepX))
-                print("Nombre de lignes détectées (après detect_lines):", self.lines_above_surfer)
-                if  self.lines_above_surfer == 1:
-                    print("Nombre de lignes detectees", self.lines_above_surfer)
-                    return True
+
+    def _find_suitable_lines(self, step, stepX):
+        gray = cv2.cvtColor(self.image_original, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+        lower, upper = self.auto_canny_threshold(gray)
+
+        # Utilisez lower et upper comme points de départ pour vos boucles
+        threshold_range = 20  # Définir la plage de variation autour des seuils estimés
+        delta_increment=stepX
+        for delta in range(-threshold_range+5, threshold_range + 1, 5):
+            self.reset_detection_variables()
+            threshold_low = max(lower + delta, 0)
+            threshold_high = min(upper + delta + delta_increment, 255)
+            self.detect_contours(threshold_low, threshold_high)
+            binary = self.process_detection(stepX)
+            self.image_with_lines = self.detect_lines(binary, step, stepX)
+            #self.show_image("Segmented wave" +str(delta), self.image_segmented)
+            print(f"Testing with thresholds: Low={threshold_low}, High={threshold_high}")
+            # Votre logique pour vérifier si les lignes détectées sont satisfaisantes...
+            if self.lines_above_surfer == 1:  # Ou toute autre condition que vous jugez appropriée
+                print("Suitable thresholds found.")
+                return True
         return False
 
     def process_detection(self, stepX):
@@ -198,5 +212,4 @@ class ImageWave:
         return binary_image
         
         
-        
-# probleme : detect_wave_height n'est paés appelé dans detect line
+    

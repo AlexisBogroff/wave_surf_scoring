@@ -13,8 +13,9 @@ surf=ImageWave("wave2.png")
 surf.detect_surfer_size(net)
 surf.detect_wave_height()
 surf.show_image("image", surf.image_segmented)
-surf.show_image("image", surf.image_with_lines)
+surf.show_image("image"
 '''
+
 
 
 #%%
@@ -31,7 +32,7 @@ for i in range(8):
     end_time = time.time()
     execution_time = end_time - start_time
     print("Temps d'exécution pour wave"+str(i)+f": {execution_time} secondes")
-
+    Vague[i].show_image("Segmented wave" +str(i), Vague[i].image_segmented)
     Vague[i].show_image("wave" +str(i), Vague[i].image_with_lines)
     i=i+1
 
