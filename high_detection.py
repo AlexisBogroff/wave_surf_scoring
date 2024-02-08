@@ -86,14 +86,20 @@ class ImageWave:
         canny = cv2.Canny(blurred, threshold1, threshold2)
         contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(self.image_segmented, contours, -1, (0, 255, 0), 2)
+        height, width = self.image_segmented.shape[:2]
+        end_y = height // 4  # 1/3 de la hauteur
+        end_x = width // 3  # 1/4 de la largeur
+
+        # Mettre à jour la région supérieure gauche de l'image binaire à zéro (noir)
+        self.image_segmented[0:end_y, 0:end_x] = 0
         #self.show_image("Contours", self.image_segmented)
 
 
-    def detect_wave_height(self, step=10, threshold_min=0, threshold_max=100):
+    def detect_wave_height(self, step=5):
         """
         Détecte la hauteur de la vague en analysant l'image.
         """
-        for stepX in range(step, 40, 5):
+        for stepX in range(40, step-1, -5):
             if self._find_suitable_lines(step,stepX):
                 break
 
@@ -142,11 +148,11 @@ class ImageWave:
         image_width = self.image_original.shape[1]
         
         surfer_center_x = self.x + self.width // 2
-        detection_width = image_width // 3  # Largeur du rectangle de détection = 1/4 de la largeur de l'image
+        detection_width = image_width // 3  # Largeur du rectangle de détection = 1/3 de la largeur de l'image
         start_x = max(surfer_center_x - detection_width // 2, 0)  # S'assurer que le rectangle ne dépasse pas à gauche
         end_x = min(surfer_center_x + detection_width // 2, image_width)
 
-        for y in range(self.y-5, 100, -step):
+        for y in range(self.y-5, self.image_original.shape[0]//6, -step):
             if self.lines_above_surfer == 4:
                 break
             
@@ -172,8 +178,18 @@ class ImageWave:
         #self.show_image("Lignes détectées", output_img)
         return output_img
     
-    def auto_canny_threshold(self, image, sigma=0.1):
-        v = np.median(image)//3
+    def auto_canny_threshold(self, image, sigma=0.15):
+        output_img = self.image_original.copy()
+        image_width = self.image_original.shape[1]
+        
+        surfer_center_x = self.x + self.width // 2
+        detection_width = image_width // 3  # Largeur du rectangle de détection = 1/3 de la largeur de l'image
+        start_x = max(surfer_center_x - detection_width // 2, 0)  # S'assurer que le rectangle ne dépasse pas à gauche
+        end_x = min(surfer_center_x + detection_width // 2, image_width)
+        start_y = 0
+        end_y = self.surfeur_haut
+
+        v = np.median(image[start_y:end_y, start_x:end_x])
         lower = int(max(0, (1.0 - sigma) * v))
         upper = int(min(255, (1.0 + sigma) * v))
         return lower, upper
@@ -182,25 +198,37 @@ class ImageWave:
     def _find_suitable_lines(self, step, stepX):
         gray = cv2.cvtColor(self.image_original, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (7, 7), 0)
-        lower, upper = self.auto_canny_threshold(gray)
+        initial_lower, initial_upper = self.auto_canny_threshold(gray)
 
-        # Utilisez lower et upper comme points de départ pour vos boucles
-        threshold_range = 20  # Définir la plage de variation autour des seuils estimés
-        delta_increment=stepX
-        for delta in range(-threshold_range+5, threshold_range + 1, 5):
+        # Calculer l'écart constant entre les seuils haut et bas
+        threshold_gap = initial_upper - initial_lower
+
+        # Parcourir les valeurs de threshold_low depuis la valeur initiale jusqu'à 0
+        for y in range(initial_lower, -1, -stepX):  # Décrémenter threshold_low par stepX
             self.reset_detection_variables()
-            threshold_low = max(lower + delta, 0)
-            threshold_high = min(upper + delta + delta_increment, 255)
-            self.detect_contours(threshold_low, threshold_high)
+
+            # Réinitialiser self.image_segmented avant de détecter de nouveaux contours
+            self.image_segmented = np.zeros_like(self.image_original)
+
+            # Calculer threshold_high pour maintenir l'écart constant
+            threshold_high = y + threshold_gap
+            # Assurer que threshold_high ne dépasse pas 255
+            if threshold_high > 255:
+                threshold_high = 255
+                if y + stepX > threshold_high:  # Éviter de boucler infiniment à la fin
+                    break
+
+            self.detect_contours(y, threshold_high)
             binary = self.process_detection(stepX)
             self.image_with_lines = self.detect_lines(binary, step, stepX)
-            #self.show_image("Segmented wave" +str(delta), self.image_segmented)
-            print(f"Testing with thresholds: Low={threshold_low}, High={threshold_high}")
-            # Votre logique pour vérifier si les lignes détectées sont satisfaisantes...
-            if self.lines_above_surfer == 1:  # Ou toute autre condition que vous jugez appropriée
+            # self.show_image("Segmented wave" + str(threshold_low), self.image_segmented)
+            print(f"Testing with thresholds: Low={y}, High={threshold_high}")
+            if self.lines_above_surfer == 1:  # Ou toute autre condition jugée appropriée
                 print("Suitable thresholds found.")
+                self.calculate_wave_height()
                 return True
         return False
+
 
     def process_detection(self, stepX):
         """
@@ -210,6 +238,19 @@ class ImageWave:
         _, binary_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY)
 
         return binary_image
-        
-        
+            
+    def calculate_wave_height(self):
+        """
+        Calcule la taille de la vague en pixels en mesurant la distance
+        entre le bas du rectangle de détection du surfeur et la ligne verte.
+        """
+        if self.surfeur_bas is None or self.last_y_center is None:
+            print("Les données nécessaires pour calculer la hauteur de la vague ne sont pas disponibles.")
+            return None
+
+        wave_height_pixels = self.surfeur_bas - self.last_y_center
+        wave_height_pixels = abs(wave_height_pixels)
+        print(f"La hauteur de la vague est de {wave_height_pixels} pixels.")
+        return wave_height_pixels
+    
     

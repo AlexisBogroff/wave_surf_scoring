@@ -9,19 +9,19 @@ from high_detection import *
 net = cv2.dnn.readNetFromDarknet('yolov4.cfg', 'yolov4.weights')
 #%%
 '''
-surf=ImageWave("wave2.png")
+surf=ImageWave("wave9.png")
 surf.detect_surfer_size(net)
 surf.detect_wave_height()
 surf.show_image("image", surf.image_segmented)
-surf.show_image("image"
+surf.show_image("image", surf.image_with_lines)
+
+
 '''
-
-
 
 #%%
 Vague=[]
 i=0
-for i in range(8):
+for i in range(10):
     
     
     
@@ -35,5 +35,5 @@ for i in range(8):
     Vague[i].show_image("Segmented wave" +str(i), Vague[i].image_segmented)
     Vague[i].show_image("wave" +str(i), Vague[i].image_with_lines)
     i=i+1
-
+#'''
 # %%
