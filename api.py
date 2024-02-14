@@ -1,4 +1,6 @@
 import os
+import time
+import random
 import cv2
 from flask import Flask,  Response, stream_with_context, jsonify, request
 from pytube import YouTube
@@ -8,10 +10,12 @@ import re
 app = Flask(__name__)
 
 
-@app.route('/analyze_video', methods=['POST'])
+@app.route('/analyze_video')
 def analyze_video():
     """Analyze the video from the provided URL and return the scores of the frames."""
     data = request.get_json()
+    print(data)
+    # data = request.get_json()
     if not data or 'url' not in data:
         return jsonify({'error': 'No URL provided'}), 400
     url = data['url']
@@ -89,7 +93,8 @@ def get_score(frame):
     """Return the score of the frame."""
 
     #@TODO: Replace with the model
-    return 0.5
+    time.sleep(0.2)
+    return random.random()
 
 if __name__ == '__main__':
     app.run(debug=True)
